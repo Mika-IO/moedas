@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Moedas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+       input {
+            width: 100%;
+            min-width: 80px;
+            max-width: 250px;
+            font-size: 1.5rem; /* Aumenta a fonte */
+            font-weight: bold;
+            letter-spacing: 1px; /* Melhora a legibilidade */
+        }
+    </style>    
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+    <!-- Navbar -->
+    <nav class="bg-white shadow-md w-full fixed top-0 left-0">
+        <div class="max-w-6xl mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <!-- Logo -->
+                <a href="#" class="text-2xl text-center font-bold text-gray-800">
+                    💱 Conversor de Moedas
+                </a>
+
+            </div>
+        </div>
+    </nav>
+
+    <!-- Ajustar espaço da navbar -->
+
+    <div class="flex flex-col items-center">
+
+        <!-- Ícone e Bandeira -->
+        <div class="relative flex items-center justify-center w-20 h-20">
+            <img id="flag" src="https://flagcdn.com/w160/us.png" alt="Bandeira" class="absolute w-25 h-14">
+        </div>
+
+        <!-- Conversão Dinâmica -->
+        <div class="mt-6 text-center text-gray-500 text-3xl">
+            <span class="font-light" id="currency-symbol">US$</span>
+            <input type="number" id="input-value" class="text-gray-700 text-center font-bold bg-transparent outline-none" value="1">
+
+            <span class="text-green-500 font-medium mr-6">vale</span>
+            <span class="font-light">R$</span>
+            <input type="number" id="real-input" class="text-gray-700 text-center font-bold bg-transparent outline-none" value="5.72">
+
+            <span class="text-green-500 font-medium">hoje</span>
+        </div>
+
+        <!-- Seleção de Moeda -->
+        <div class="mt-4 flex flex-col items-center">
+            <select id="currency-select" class="mt-2 px-4 py-2 border rounded-lg bg-white w-full">
+                <option value="USD" data-flag="us">🇺🇸 Dólar hoje</option>
+                <option value="EUR" data-flag="eu">🇪🇺 Euro hoje</option>
+                <option value="GBP" data-flag="gb">🇬🇧 Libra hoje</option>
+                <option value="CAD" data-flag="ca">🇨🇦 Dólar Canadense hoje</option>
+                <option value="JPY" data-flag="jp">🇯🇵 Iene hoje</option>
+                <option value="CNY" data-flag="cn">🇨🇳 Yuan hoje</option>
+            </select>
+            <span id="current-date" class="mt-3 text-gray-600 text-[10px]  text-center pb-6">
+                📅 Carregando data...
+            </span>
+        </div>
+
+        
+    </div>
+    <script>
+        const apiKey = "SUA_CHAVE_API"; // Substitua pela sua chave da API
+        const apiUrl = "https://open.er-api.com/v6/latest/";
+
+        const inputValue = document.getElementById("input-value");
+        const realInput = document.getElementById("real-input");
+        const currencySelect = document.getElementById("currency-select");
+        const flagImage = document.getElementById("flag");
+        const currencySymbol = document.getElementById("currency-symbol");
+
+        let currentRate = 5.72;  // Valor padrão (será atualizado pela API)
+
+        // Atualiza os valores conforme a cotação
+        async function updateConversion(fromReal = false) {
+            let selectedCurrency = currencySelect.value;
+            
+            try {
+                const response = await fetch(`${apiUrl}${selectedCurrency}?apikey=${apiKey}`);
+                const data = await response.json();
+                currentRate = data.rates.BRL;
+
+                if (fromReal) {
+                    inputValue.value = (parseFloat(realInput.value) / currentRate).toFixed(2);
+                } else {
+                    realInput.value = (parseFloat(inputValue.value) * currentRate).toFixed(2);
+                }
+                adjustBothInputs();
+            } catch (error) {
+                console.error("Erro ao obter a cotação:", error);
+            }
+        }
+
+        // Atualiza o ícone da bandeira e o símbolo da moeda ao selecionar uma nova moeda
+        currencySelect.addEventListener("change", function () {
+            const selectedOption = currencySelect.options[currencySelect.selectedIndex];
+            const flagCode = selectedOption.getAttribute("data-flag");
+            flagImage.src = `https://flagcdn.com/w160/${flagCode}.png`;
+
+            const currencySymbols = {
+                "USD": "US$",
+                "EUR": "€",
+                "GBP": "£",
+                "CAD": "C$",
+                "JPY": "¥",
+                "CNY": "¥",
+                "BRL": "R$"
+            };
+            currencySymbol.innerText = currencySymbols[currencySelect.value] || "";
+
+            updateConversion();
+        });
+
+        // Atualiza ao digitar na moeda estrangeira
+        inputValue.addEventListener("input", () => updateConversion(false));
+
+        // Atualiza ao digitar no real (conversão inversa)
+        realInput.addEventListener("input", () => updateConversion(true));
+
+        // Inicia com a conversão padrão
+        updateConversion();
+
+        function adjustBothInputs() {
+            adjustWidth(inputValue);
+            adjustWidth(realInput);
+        }
+
+        // Função que ajusta dinamicamente a largura do input
+        function adjustWidth(input) {
+            const span = document.createElement("span");
+            span.style.visibility = "hidden";
+            span.style.position = "absolute";
+            span.style.fontSize = getComputedStyle(input).fontSize;
+            span.style.fontWeight = getComputedStyle(input).fontWeight;
+            span.style.whiteSpace = "pre"; // Mantém a formatação correta
+            span.innerText = input.value || "0"; // Garante que sempre tenha um valor visível
+
+            document.body.appendChild(span);
+            input.style.width = span.offsetWidth + 20 + "px"; // Ajusta a largura do input
+            document.body.removeChild(span);
+        }
+
+        function updateDate() {
+            const dateElement = document.getElementById("current-date");
+            const today = new Date();
+            
+            // Formata a data no formato "DD/MM/AAAA"
+            const formattedDate = today.toLocaleDateString('pt-BR');
+
+            dateElement.innerHTML = `${formattedDate}`;
+        }
+
+        // Atualiza a data ao carregar a página
+        document.addEventListener("DOMContentLoaded", updateDate);
+    </script>
+</body>
+</html>
