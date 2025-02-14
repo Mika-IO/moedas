@@ -55,6 +55,7 @@
         <div class="mt-4 flex flex-col items-center">
             <select id="currency-select" class="mt-2 px-4 py-2 border rounded-lg bg-white w-full">
                 <option value="USD" data-flag="us">🇺🇸 Dólar hoje</option>
+                <option value="BTC" data-flag="btc">⚡ Bitcoin hoje</option>
                 <option value="EUR" data-flag="eu">🇪🇺 Euro hoje</option>
                 <option value="GBP" data-flag="gb">🇬🇧 Libra hoje</option>
                 <option value="CAD" data-flag="ca">🇨🇦 Dólar Canadense hoje</option>
@@ -81,23 +82,56 @@
         let currentRate = 5.72;  // Valor padrão (será atualizado pela API)
 
         // Atualiza os valores conforme a cotação
+        // Tempo de cache em milissegundos (10 minutos)
+        const CACHE_DURATION = 10 * 60 * 1000;
+
         async function updateConversion(fromReal = false) {
             let selectedCurrency = currencySelect.value;
-            
-            try {
-                const response = await fetch(`${apiUrl}${selectedCurrency}?apikey=${apiKey}`);
-                const data = await response.json();
-                currentRate = data.rates.BRL;
+            const cacheKey = `exchange_rate_${selectedCurrency}`;
+            const now = new Date().getTime();
 
-                if (fromReal) {
-                    inputValue.value = (parseFloat(realInput.value) / currentRate).toFixed(2);
-                } else {
-                    realInput.value = (parseFloat(inputValue.value) * currentRate).toFixed(2);
+            // Verifica se há um valor em cache e se ainda é válido
+            const cachedData = localStorage.getItem(cacheKey);
+            if (cachedData) {
+                const { rate, timestamp } = JSON.parse(cachedData);
+                if (now - timestamp < CACHE_DURATION) {
+                    currentRate = rate;
+                    applyConversion(fromReal);
+                    return;
                 }
-                adjustBothInputs();
+            }
+
+            try {
+                let fetchUrl = `${apiUrl}${selectedCurrency}?apikey=${apiKey}`;
+
+                // Caso a moeda seja Bitcoin, utilizar uma API alternativa
+                if (selectedCurrency === "BTC") {
+                    fetchUrl = `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=brl`;
+                }
+
+                const response = await fetch(fetchUrl);
+                const data = await response.json();
+                
+                // Definir a taxa correta (BTC ou moeda tradicional)
+                currentRate = selectedCurrency === "BTC" ? data.bitcoin.brl : data.rates.BRL;
+
+                // Salvar a taxa no cache
+                localStorage.setItem(cacheKey, JSON.stringify({ rate: currentRate, timestamp: now }));
+
+                applyConversion(fromReal);
             } catch (error) {
                 console.error("Erro ao obter a cotação:", error);
             }
+        }
+
+        // Função auxiliar para aplicar a conversão sem reescrever código
+        function applyConversion(fromReal) {
+            if (fromReal) {
+                inputValue.value = (parseFloat(realInput.value) / currentRate).toFixed(8); // Precisão maior para BTC
+            } else {
+                realInput.value = (parseFloat(inputValue.value) * currentRate).toFixed(2);
+            }
+            adjustBothInputs();
         }
 
         // Atualiza o ícone da bandeira e o símbolo da moeda ao selecionar uma nova moeda
@@ -105,6 +139,12 @@
             const selectedOption = currencySelect.options[currencySelect.selectedIndex];
             const flagCode = selectedOption.getAttribute("data-flag");
             flagImage.src = `https://flagcdn.com/w160/${flagCode}.png`;
+            // Ajusta a bandeira (ou ícone do Bitcoin)
+            if (currencySelect.value === "BTC") {
+                flagImage.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Bitcoin.svg/120px-Bitcoin.svg.png";
+            } else {
+                flagImage.src = `https://flagcdn.com/w160/${flagCode}.png`;
+            }
 
             const currencySymbols = {
                 "USD": "US$",
@@ -113,7 +153,8 @@
                 "CAD": "C$",
                 "JPY": "¥",
                 "CNY": "¥",
-                "BRL": "R$"
+                "BRL": "R$",
+                "BTC": "₿"
             };
             currencySymbol.innerText = currencySymbols[currencySelect.value] || "";
 
